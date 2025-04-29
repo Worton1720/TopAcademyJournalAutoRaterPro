@@ -6,8 +6,6 @@
 // @author       Rodion
 // @match        https://journal.top-academy.ru/*
 // @grant        none
-// @updateURL    https://raw.githubusercontent.com/Worton1720/TopAcademyJournalAutoRaterPro/main/index.js
-// @downloadURL  https://raw.githubusercontent.com/Worton1720/TopAcademyJournalAutoRaterPro/main/index.js
 // ==/UserScript==
 
 (function () {
