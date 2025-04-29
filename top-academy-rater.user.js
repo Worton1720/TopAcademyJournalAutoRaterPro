@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Top Academy Journal Auto Rater Pro
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      0.2
 // @description  Автоматизация оценки, навигации и подсчёта посещаемости (только на странице прогресса)
 // @author       Rodion
 // @match        https://journal.top-academy.ru/*
