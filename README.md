@@ -32,9 +32,10 @@
 
 ## 🛠 Установка
 
-1. Нажмите кнопку [![Установить через Greasy Fork](https://img.shields.io/badge/Greasy_Fork-Установить-green?style=for-the-badge&logo=greasemonkey)](https://greasyfork.org/ru/scripts/534433-top-academy-journal-auto-rater-pro)
-2. Нажмите зелёную кнопку **"Установить"**
-3. Подтвердите установку в диалоговом окне
+0. Установите [Tampermonkey](https://www.tampermonkey.net/index.php) расширение
+1. Нажмите [![Установить через Greasy Fork](https://img.shields.io/badge/Greasy_Fork-Установить-green?style=for-the-badge&logo=greasemonkey)](https://greasyfork.org/ru/scripts/534433-top-academy-journal-auto-rater-pro)
+2. Подтвердите установку в диалоговом окне
+3. Перезагрузите страницу сайта
 
 ---
 
