@@ -32,7 +32,7 @@
 
 ## 🛠 Установка
 
-0. Установите [Tampermonkey](https://www.tampermonkey.net/index.php) расширение
+0. Установите [Tampermonkey](https://www.tampermonkey.net/index.php) или [Violentmonkey](https://violentmonkey.github.io/get-it/) расширение
 1. Нажмите [![Установить через Greasy Fork](https://img.shields.io/badge/Greasy_Fork-Установить-green?style=for-the-badge&logo=greasemonkey)](https://greasyfork.org/ru/scripts/534433-top-academy-journal-auto-rater-pro)
 2. Подтвердите установку в диалоговом окне
 3. Перезагрузите страницу сайта
