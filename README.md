@@ -32,8 +32,8 @@
 
 ## 🛠 Установка
 
-0. Установите [Tampermonkey](https://www.tampermonkey.net/index.php) или [Violentmonkey](https://violentmonkey.github.io/get-it/) расширение
-1. Нажмите [![Установить через Greasy Fork](https://img.shields.io/badge/Greasy_Fork-Установить-green?style=for-the-badge&logo=greasemonkey)](https://greasyfork.org/ru/scripts/534433-top-academy-journal-auto-rater-pro)
+0. Установите [Violentmonkey](https://violentmonkey.github.io/get-it/) или [Tampermonkey](https://www.tampermonkey.net/index.php) расширение
+1. Нажмите [![Установить напрямую](https://img.shields.io/badge/напрямую-Установить-green?style=for-the-badge&logo=greasemonkey)](https://raw.githubusercontent.com/Worton1720/TopAcademyJournalAutoRaterPro/blob/main/top-academy-rater.user.js) или [![Установить через Greasy Fork](https://img.shields.io/badge/Greasy_Fork-Установить-green?style=for-the-badge&logo=greasemonkey)](https://greasyfork.org/ru/scripts/534433-top-academy-journal-auto-rater-pro)
 2. Подтвердите установку в диалоговом окне
 3. Перезагрузите страницу сайта
 

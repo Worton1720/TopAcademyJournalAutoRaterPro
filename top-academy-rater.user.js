@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Top Academy Journal Auto Rater Pro
+// @name         Top Academy Attendance Stats
 // @namespace    http://tampermonkey.net/
-// @version      0.2
-// @description  Автоматизация оценки, навигации и подсчёта посещаемости (только на странице прогресса)
+// @version      0.3
+// @description  Подсчёт посещаемости (только на странице прогресса)
 // @author       Rodion
 // @match        https://journal.top-academy.ru/*
 // @grant        none
@@ -14,26 +14,13 @@
 	/** Конфигурация скрипта */
 	const CONFIG = {
 		ZOOM_LEVEL: '80%',
-		TARGET_RATING: 5,
-		NEXT_BUTTON_TEXTS: ['Далее', 'Отправить'],
-		OBSERVER_CONFIG: {
-			childList: true,
-			subtree: true,
-			attributes: true,
-			attributeFilter: ['style', 'class'],
-		},
-		CHECK_INTERVAL: 1000,
-		CLICK_DELAY: 100,
 		PROGRESS_PAGE_REGEX:
 			/https:\/\/journal\.top-academy\.ru\/.*\/main\/progress\/.*/,
 	};
 
-	/** Основной класс автоматизатора */
-	class AutoRater {
+	/** Основной класс скрипта */
+	class AttendanceStats {
 		constructor() {
-			this.isProcessing = false;
-			this.observer = null;
-			this.intervalId = null;
 			this.widget = null;
 			this.isCollapsed = false;
 
@@ -50,8 +37,6 @@
 		/** Инициализация скрипта */
 		init() {
 			this.setPageZoom();
-			this.setupObservers();
-			this.initialCheck();
 
 			// Инициализация статистики только на странице прогресса
 			if (this.isProgressPage()) {
@@ -185,17 +170,7 @@
 				this.updateAttendanceStats.bind(this),
 				300
 			);
-			// this.setupAttendanceObserver();
 			this.updateAttendanceStats(); // Первоначальное обновление
-		}
-
-		/** Настройка наблюдателя для посещаемости */
-		setupAttendanceObserver() {
-			const targetNode =
-				document.querySelector('#attendance-anchor') || document.body;
-			new MutationObserver(() => {
-				this.updateAttendanceStats(); // Обновляем статистику при изменениях
-			}).observe(targetNode, { childList: true, subtree: true });
 		}
 
 		/** Проверка и обновление виджета */
@@ -232,31 +207,31 @@
 			});
 
 			this.widget.innerHTML = `
-        <div style="display:flex; align-items:center; justify-content:space-between;">
-            <strong>📊 Статистика</strong>
-            <button id="toggle-stats"
-                    title="Свернуть/развернуть"
-                    style="background:none; border:none; cursor:pointer; font-size:14px; line-height:1; padding:0;">
-                ⯆
-            </button>
-        </div>
-        <div class="stats-body" style="margin-top:8px;">
-            <label>С: <input type="date" id="date-from"></label><br>
-            <label>По: <input type="date" id="date-to"></label><br>
-            <button id="reset-stats" style="margin-top:6px;">Сбросить</button>
-            <button id="refresh-stats" title="Обновить"
-                    style="margin-top:6px; margin-left:4px; font-size:12px; line-height:1; padding:2px 4px; cursor:pointer;">
-                ↻
-            </button>
-            <div id="stats-content" style="margin-top:8px">
-                Всего занятий: 0<br>
-                Присутствия: 0<br>
-                Опоздания: 0<br>
-                Пропуски: 0<br>
-                Посещаемость: <b>0%</b>
-            </div>
-        </div>
-    `;
+			<div style="display:flex; align-items:center; justify-content:space-between;">
+					<strong>📊 Статистика</strong>
+					<button id="toggle-stats"
+									title="Свернуть/развернуть"
+									style="background:none; border:none; cursor:pointer; font-size:14px; line-height:1; padding:0;">
+							⯆
+					</button>
+			</div>
+			<div class="stats-body" style="margin-top:8px;">
+					<label>С: <input type="date" id="date-from"></label><br>
+					<label>По: <input type="date" id="date-to"></label><br>
+					<button id="reset-stats" style="margin-top:6px;">Сбросить</button>
+					<button id="refresh-stats" title="Обновить"
+									style="margin-top:6px; margin-left:4px; font-size:12px; line-height:1; padding:2px 4px; cursor:pointer;">
+							↻
+					</button>
+					<div id="stats-content" style="margin-top:8px">
+							Всего занятий: 0<br>
+							Присутствия: 0<br>
+							Опоздания: 0<br>
+							Пропуски: 0<br>
+							Посещаемость: <b>0%</b>
+					</div>
+			</div>
+	`;
 			document.body.appendChild(this.widget);
 
 			// Установка диапазона по умолчанию: с начала месяца до сегодня
@@ -387,12 +362,12 @@
 			if (this.widget) {
 				const statsContent = this.widget.querySelector('#stats-content');
 				statsContent.innerHTML = `
-                  Всего занятий: ${total}<br>
-                  Присутствия: ${present}<br>
-                  Опоздания: ${lateness}<br>
-                  Пропуски: ${absent}<br>
-                  Посещаемость: <b>${attendancePercentage}%</b>
-              `;
+								Всего занятий: ${total}<br>
+								Присутствия: ${present}<br>
+								Опоздания: ${lateness}<br>
+								Пропуски: ${absent}<br>
+								Посещаемость: <b>${attendancePercentage}%</b>
+						`;
 			}
 		}
 
@@ -427,116 +402,17 @@
 			});
 		}
 
-		/** Настройка наблюдателей */
-		setupObservers() {
-			this.observer = new MutationObserver(() => this.handleModal());
-			this.observer.observe(document.body, CONFIG.OBSERVER_CONFIG);
-			this.intervalId = setInterval(
-				() => this.handleModal(),
-				CONFIG.CHECK_INTERVAL
-			);
-		}
-
-		/** Первоначальная проверка */
-		initialCheck() {
-			this.handleModal();
-		}
-
-		/** Основной обработчик модальных окон */
-		handleModal() {
-			if (this.shouldSkipProcessing()) return;
-			this.isProcessing = true;
-
-			try {
-				if (this.processRating()) {
-					this.scheduleNextButtonClick();
-				} else if (this.isRatingAlreadySet()) {
-					this.clickNextButton();
-				}
-			} finally {
-				this.isProcessing = false;
-			}
-		}
-
-		/** Проверка условий для пропуска обработки */
-		shouldSkipProcessing() {
-			return this.isProcessing || !this.isModalVisible();
-		}
-
-		/** Проверка видимости модального окна */
-		isModalVisible() {
-			const modal = document.querySelector('modal-container');
-			return modal && modal.style.display !== 'none';
-		}
-
-		/** Обработка рейтинга */
-		processRating() {
-			const ratingElement = this.findRatingElement();
-			if (!ratingElement) return false;
-
-			this.clickRating(ratingElement);
-			return true;
-		}
-
-		/** Поиск элемента рейтинга */
-		findRatingElement() {
-			return document.querySelector(
-				`span.bs-rating-star[title="${CONFIG.TARGET_RATING}"]:not(.active)`
-			);
-		}
-
-		/** Клик по звёздочке рейтинга */
-		clickRating(element) {
-			const button = element.querySelector('button.rating-star');
-			if (button) {
-				button.click();
-				console.log(`Нажата ${CONFIG.TARGET_RATING}-звёздочная оценка`);
-			}
-		}
-
-		/** Проверка установленного рейтинга */
-		isRatingAlreadySet() {
-			return !!document.querySelector(
-				`span.bs-rating-star[title="${CONFIG.TARGET_RATING}"].active`
-			);
-		}
-
-		/** Запланировать клик по кнопке "Далее" */
-		scheduleNextButtonClick() {
-			setTimeout(() => this.clickNextButton(), CONFIG.CLICK_DELAY);
-		}
-
-		/** Попытка нажатия кнопки продолжения */
-		clickNextButton() {
-			const button = this.findNextButton();
-			if (button) {
-				button.click();
-				console.log(`Нажата кнопка "${button.textContent.trim()}"`);
-				return true;
-			}
-			return false;
-		}
-
-		/** Поиск кнопки продолжения */
-		findNextButton() {
-			return Array.from(
-				document.querySelectorAll('button.btn.btn-default')
-			).find(btn => CONFIG.NEXT_BUTTON_TEXTS.includes(btn.textContent.trim()));
-		}
-
 		/** Очистка ресурсов */
 		cleanup() {
-			if (this.observer) this.observer.disconnect();
-			if (this.intervalId) clearInterval(this.intervalId);
 			this.removeAttendanceWidget();
 		}
 	}
 
 	// Запуск скрипта
-	const autoRater = new AutoRater();
+	const attendanceStats = new AttendanceStats();
 
 	// Очистка при выгрузке страницы
 	window.addEventListener('unload', () => {
-		autoRater.cleanup();
+		attendanceStats.cleanup();
 	});
 })();
