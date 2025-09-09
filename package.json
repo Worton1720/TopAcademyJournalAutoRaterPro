@@ -1,0 +1,28 @@
+{
+	"name": "tampermonkey-builder",
+	"version": "1.0.0",
+	"description": "<div align=\"center\">",
+	"main": "build.js",
+	"scripts": {
+		"build:dev": "rollup -c --environment MINIFY:false",
+		"build:prod": "rollup -c --environment MINIFY:true"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Worton1720/TopAcademyJournalAutoRaterPro.git"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"type": "module",
+	"bugs": {
+		"url": "https://github.com/Worton1720/TopAcademyJournalAutoRaterPro/issues"
+	},
+	"homepage": "https://github.com/Worton1720/TopAcademyJournalAutoRaterPro#readme",
+	"dependencies": {
+		"@rollup/plugin-commonjs": "^28.0.6",
+		"@rollup/plugin-node-resolve": "^16.0.1",
+		"rollup": "^4.50.1",
+		"rollup-plugin-terser": "^7.0.2"
+	}
+}
