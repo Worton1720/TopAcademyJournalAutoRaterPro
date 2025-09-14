@@ -9,7 +9,7 @@ export class ConfigUI {
 		this.fields = [
 			{
 				key: 'ZOOM_LEVEL',
-				label: 'Масштаб страницы (например: 80%)',
+				label: 'Уровень масштаба страницы (например: 80%)',
 				type: 'text',
 				placeholder: '80%',
 				validate: value => value.trim() !== '' || 'Поле не должно быть пустым',
@@ -152,9 +152,11 @@ export class ConfigUI {
 		};
 
 		defaultsBtn.addEventListener('click', () => {
-			this.fields.forEach(f => {
-				const input = this.modal.querySelector(`input[data-key="${f.key}"]`);
-				input.value = f.placeholder || '';
+			this.fields.forEach(field => {
+				const input = this.modal.querySelector(
+					`input[data-key="${field.key}"]`
+				);
+				input.value = field.placeholder || '';
 			});
 			setError(null);
 		});

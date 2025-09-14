@@ -1,5 +1,6 @@
 // Подключаем стили через GM_addStyle (работает в Tampermonkey/Greasemonkey)
 GM_addStyle(`
+  /* контейнер для всей статистики */
   #attendance-stats {
     position: fixed;
     top: 10%;
@@ -15,6 +16,7 @@ GM_addStyle(`
     transition: all 0.3s ease;
   }
 
+  /* скрытый контейнер */
   #attendance-stats.collapsed {
     width: 40px;
     height: 40px;
@@ -22,6 +24,7 @@ GM_addStyle(`
     padding: 6px;
   }
 
+  /* заголовок */
   #attendance-stats header {
     display: flex;
     align-items: center;
@@ -30,6 +33,7 @@ GM_addStyle(`
     font-size: 15px;
   }
 
+  /* кнопка */
   #attendance-stats button {
     border: none;
     background: #e5e7eb;
@@ -44,6 +48,7 @@ GM_addStyle(`
     background: #d1d5db;
   }
 
+  /* кнопка "Свернуть/развернуть" */
   #attendance-stats #toggle-stats {
     background: none;
     font-size: 16px;
@@ -51,12 +56,14 @@ GM_addStyle(`
     margin: 0;
   }
 
+  /* метки */
   #attendance-stats label {
     display: block;
     margin-top: 6px;
     font-size: 13px;
   }
 
+  /* поля ввода даты */
   #attendance-stats input[type="date"] {
     width: 100%;
     padding: 6px;
@@ -66,10 +73,12 @@ GM_addStyle(`
     font-size: 13px;
   }
 
+  /* цвета присутствия */
   #attendance-stats .present { color: #16a34a; }
   #attendance-stats .lateness { color: #d97706; }
   #attendance-stats .absent { color: #dc2626; }
 
+  /* прогресс-бар */
   #attendance-stats .progress-bar {
     margin-top: 6px;
     height: 8px;
@@ -83,6 +92,7 @@ GM_addStyle(`
     width: 0%;
     transition: width 0.4s ease;
   }
+	/* скрытый контейнер */
 	#attendance-stats.collapsed .stats-body {
 		display: none;
 	}

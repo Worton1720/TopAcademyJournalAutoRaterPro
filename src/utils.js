@@ -1,6 +1,9 @@
 /**
  * Дебаунс-функция.
  * Ограничивает частоту вызова функции func до одного раза в wait мс.
+ * @param {Function} func - функция, которую нужно ограничить
+ * @param {number} wait - время ожидания в мс
+ * @returns {Function} - обёрнутая функция
  */
 export function debounce(func, wait) {
 	let timeout;
@@ -12,6 +15,8 @@ export function debounce(func, wait) {
 
 /**
  * Преобразует строку в формате YYYY-MM-DD в объект Date (местная дата, полуночь).
+ * @param {string} dateStr - строка в формате YYYY-MM-DD
+ * @returns {Date} - объект Date
  */
 export function parseLocalDate(dateStr) {
 	const [y, m, d] = dateStr.split('-').map(Number);
@@ -20,6 +25,8 @@ export function parseLocalDate(dateStr) {
 
 /**
  * Форматирует объект Date в строку YYYY-MM-DD.
+ * @param {Date} date - объект Date
+ * @returns {string} - строка в формате YYYY-MM-DD
  */
 export function formatDate(date) {
 	const yyyy = date.getFullYear();

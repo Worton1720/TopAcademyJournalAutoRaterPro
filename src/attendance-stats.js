@@ -3,12 +3,18 @@ import { debounce, parseLocalDate } from './utils.js';
 
 export class AttendanceStats {
 	constructor(CONFIG) {
+		/**
+		 * @param {Object} CONFIG - конфигурация
+		 */
 		this.CONFIG = CONFIG;
 		this.widget = null;
 		this.isCollapsed = false;
 		this.rangeStart = null;
 		this.rangeEnd = null;
 
+		/**
+		 * @param {number} ms - время ожидания
+		 */
 		this.updateAttendanceStats = debounce(
 			this.updateAttendanceStats.bind(this),
 			300
@@ -18,16 +24,25 @@ export class AttendanceStats {
 	}
 
 	init() {
+		/**
+		 * Установка масштаба страницы
+		 */
 		this.setPageZoom();
 		if (this.isProgressPage()) this.initAttendanceStats();
 		this.setupNavigationObserver();
 	}
 
 	isProgressPage() {
+		/**
+		 * Проверка, является ли страница страницей прогресса
+		 */
 		return this.CONFIG.PROGRESS_PAGE_REGEX.test(window.location.href);
 	}
 
 	setPageZoom() {
+		/**
+		 * Установка масштаба страницы
+		 */
 		document.documentElement.style.zoom = this.CONFIG.ZOOM_LEVEL;
 	}
 
@@ -37,22 +52,35 @@ export class AttendanceStats {
 			this.setDefaultDateRange();
 			this.setupWidgetControls();
 			this.setupRangeSelection();
+			this.setupDateInputListeners();
 		}
 		this.updateAttendanceStats();
 	}
 
-	// Устанавливаем диапазон с начала месяца до сегодня
+	/**
+	 * Установка диапазона с начала месяца до сегодня
+	 */
 	setDefaultDateRange() {
 		const now = new Date();
 		const yyyy = now.getFullYear();
 		const mm = String(now.getMonth() + 1).padStart(2, '0');
 		const dd = String(now.getDate()).padStart(2, '0');
+
+		// Устанавливаем начало дня для rangeStart
 		this.rangeStart = new Date(yyyy, now.getMonth(), 1);
+		this.rangeStart.setHours(0, 0, 0, 0);
+
+		// Устанавливаем конец дня для rangeEnd
 		this.rangeEnd = new Date(yyyy, now.getMonth(), now.getDate());
+		this.rangeEnd.setHours(23, 59, 59, 999);
+
 		this.widget.querySelector('#date-from').value = `${yyyy}-${mm}-01`;
 		this.widget.querySelector('#date-to').value = `${yyyy}-${mm}-${dd}`;
 	}
 
+	/**
+	 * Установка контролов для виджета
+	 */
 	setupWidgetControls() {
 		const resetBtn = this.widget.querySelector('#reset-stats');
 		const refreshBtn = this.widget.querySelector('#refresh-stats');
@@ -86,12 +114,43 @@ export class AttendanceStats {
 		});
 	}
 
+	/**
+	 * Обработчики для полей ввода дат
+	 */
+	setupDateInputListeners() {
+		const dateFromInput = this.widget.querySelector('#date-from');
+		const dateToInput = this.widget.querySelector('#date-to');
+
+		dateFromInput.addEventListener('change', e => {
+			if (e.target.value) {
+				const date = new Date(e.target.value);
+				date.setHours(0, 0, 0, 0); // Устанавливаем начало дня
+				this.rangeStart = date;
+				this.updateAttendanceStats();
+			}
+		});
+
+		dateToInput.addEventListener('change', e => {
+			if (e.target.value) {
+				const date = new Date(e.target.value);
+				date.setHours(23, 59, 59, 999); // Устанавливаем конец дня
+				this.rangeEnd = date;
+				this.updateAttendanceStats();
+			}
+		});
+	}
+
+	/**
+	 * Обновление статистики
+	 */
 	updateAttendanceStats() {
 		if (!this.isProgressPage()) {
 			removeWidget();
 			return;
 		}
 		if (!this.widget) this.widget = createWidget();
+
+		this.syncDateInputs();
 
 		const dateFrom = this.rangeStart;
 		const dateTo = this.rangeEnd ? new Date(this.rangeEnd) : null;
@@ -108,7 +167,13 @@ export class AttendanceStats {
 			if (!dateText) return false;
 			const [d, m, y] = dateText.split('.').map(Number);
 			const ld = new Date(y, m - 1, d);
-			return (!dateFrom || ld >= dateFrom) && (!dateTo || ld <= dateTo);
+			ld.setHours(12, 0, 0, 0); // Устанавливаем середину дня для точного сравнения
+
+			// Правильное сравнение дат с учетом времени
+			const afterStart = !dateFrom || ld >= dateFrom;
+			const beforeEnd = !dateTo || ld <= dateTo;
+
+			return afterStart && beforeEnd;
 		});
 
 		const total = filteredLessons.length;
@@ -118,23 +183,44 @@ export class AttendanceStats {
 		const absent = filteredLessons.filter(l =>
 			l.classList.contains('pass')
 		).length;
-		const present = filteredLessons.filter(
-			l => !l.classList.contains('pass')
-		).length;
+		const present =
+			Math.max(0, filteredLessons.filter(l => !l.classList.contains('pass')).length - lateness);
 		const perc = total > 0 ? ((present / total) * 100).toFixed(1) : 0;
 
 		this.widget.querySelector('#stats-content').innerHTML = `
-  Всего занятий: ${total}<br>
-  <span class="present">Присутствия: ${present}</span><br>
-  <span class="lateness">Опоздания: ${lateness}</span><br>
-  <span class="absent">Пропуски: ${absent}</span><br>
-  Посещаемость: <b>${perc}%</b>
-  <div class="progress-bar"><div class="progress-bar-inner" style="width:${perc}%;"></div></div>
-`;
+		Всего занятий: ${total}<br>
+		<span class="present">Присутствия: ${present}</span><br>
+		<span class="lateness">Опоздания: ${lateness}</span><br>
+		<span class="absent">Пропуски: ${absent}</span><br>
+		Посещаемость: <b>${perc}%</b>
+		<div class="progress-bar"><div class="progress-bar-inner" style="width:${perc}%;"></div></div>
+	`;
+		console.log('Selected date range:', dateFrom, dateTo);
 
 		this.highlightRange();
 	}
 
+	/**
+	 * Синхронизация полей ввода с текущим диапазоном
+	 */
+	syncDateInputs() {
+		const dateFromInput = this.widget.querySelector('#date-from');
+		const dateToInput = this.widget.querySelector('#date-to');
+
+		if (this.rangeStart) {
+			const fromDate = new Date(this.rangeStart);
+			dateFromInput.value = fromDate.toISOString().split('T')[0];
+		}
+
+		if (this.rangeEnd) {
+			const toDate = new Date(this.rangeEnd);
+			dateToInput.value = toDate.toISOString().split('T')[0];
+		}
+	}
+
+	/**
+	 * Установка контролов для выбора диапазона
+	 */
 	setupRangeSelection() {
 		document.body.addEventListener('click', e => {
 			const lesson = e.target.closest(
@@ -149,11 +235,17 @@ export class AttendanceStats {
 				.split('.')
 				.map(Number);
 			const lessonDate = new Date(year, month - 1, day);
+			lessonDate.setHours(12, 0, 0, 0); // Устанавливаем середину дня
 
-			if (e.shiftKey) this.rangeEnd = lessonDate;
-			else {
+			if (e.shiftKey) {
+				if (!this.rangeStart) {
+					this.rangeStart = lessonDate;
+				} else {
+					this.rangeEnd = lessonDate;
+				}
+			} else {
 				this.rangeStart = lessonDate;
-				this.rangeEnd = lessonDate; // один клик = один день
+				this.rangeEnd = lessonDate;
 			}
 
 			// Переставляем если rangeStart > rangeEnd
@@ -161,10 +253,15 @@ export class AttendanceStats {
 				[this.rangeStart, this.rangeEnd] = [this.rangeEnd, this.rangeStart];
 			}
 
+			// Синхронизируем поля ввода после изменения диапазона
+			this.syncDateInputs();
 			this.updateAttendanceStats();
 		});
 	}
 
+	/**
+	 * Подсветка выбранного диапазона
+	 */
 	highlightRange() {
 		this.clearHighlights();
 		if (!(this.rangeStart && this.rangeEnd)) return;
@@ -177,6 +274,7 @@ export class AttendanceStats {
 				if (!dateEl) return null;
 				const [d, m, y] = dateEl.textContent.trim().split('.').map(Number);
 				const dt = new Date(y, m - 1, d);
+				dt.setHours(12, 0, 0, 0); // Устанавливаем середину дня
 				return { lesson, dt };
 			})
 			.filter(
@@ -195,6 +293,9 @@ export class AttendanceStats {
 		});
 	}
 
+	/**
+	 * Очистка старых меток
+	 */
 	clearHighlights() {
 		document
 			.querySelectorAll('.lessons, .lessons.lateness, .lessons.pass')
@@ -203,6 +304,9 @@ export class AttendanceStats {
 			});
 	}
 
+	/**
+	 * Установка наблюдателя за изменением структуры документа
+	 */
 	setupNavigationObserver() {
 		let lastUrl = window.location.href;
 		new MutationObserver(() => {
@@ -221,6 +325,9 @@ export class AttendanceStats {
 		});
 	}
 
+	/**
+	 * Очистка при закрытии скрипта
+	 */
 	cleanup() {
 		removeWidget();
 	}

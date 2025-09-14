@@ -80,7 +80,6 @@ out
 
 # Nuxt.js build / generate output
 .nuxt
-dist/dev
 .output
 .vscode
 
@@ -142,4 +141,4 @@ vite.config.ts.timestamp-*
 .vite/
 
 # Custom
-test.txt
+*.tst.*

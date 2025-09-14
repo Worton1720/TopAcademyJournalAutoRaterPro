@@ -10,5 +10,5 @@
 		"GM_registerMenuCommand",
 		"GM_addStyle"
 	],
-	"run-at": "document-idle"
+	"run-at": "document-end"
 }

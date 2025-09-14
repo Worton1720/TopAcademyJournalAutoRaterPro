@@ -5,7 +5,8 @@
 	"main": "build.js",
 	"scripts": {
 		"build:dev": "rollup -c --environment MINIFY:false",
-		"build:prod": "rollup -c --environment MINIFY:true"
+		"build:prod": "rollup -c --environment MINIFY:true",
+		"build:all": "npm run build:dev && npm run build:prod"
 	},
 	"repository": {
 		"type": "git",
