@@ -1,3 +1,5 @@
+import { ConfigUI } from '../core/ConfigUI.js';
+
 export class UIModule {
 	constructor({ eventBus, configManager }) {
 		this.eventBus = eventBus;
@@ -7,6 +9,7 @@ export class UIModule {
 
 	init() {
 		this.setupEventListeners();
+		// Убедитесь, что этот метод вызывается
 		this.configManager.registerMenuCommands(this.eventBus);
 	}
 
@@ -15,19 +18,26 @@ export class UIModule {
 	}
 
 	showConfigUI() {
-		if (this.configUI) {
-			this.configUI.show();
-			return;
-		}
-
-		// Убрали динамический импорт, используем прямой
-		this.configUI = new ConfigUI(this.configManager.config, async newConfig => {
-			const success = await this.configManager.saveConfig(newConfig);
-			if (success) {
-				this.eventBus.emit('config:updated');
+		try {
+			if (this.configUI) {
+				this.configUI.show();
+				return;
 			}
-		});
-		this.configUI.show();
+
+			// Убрали динамический импорт, используем прямой
+			this.configUI = new ConfigUI(
+				this.configManager.config,
+				async newConfig => {
+					const success = await this.configManager.saveConfig(newConfig);
+					if (success) {
+						this.eventBus.emit('config:updated');
+					}
+				},
+			);
+			this.configUI.show();
+		} catch (error) {
+			console.error('Failed to load ConfigUI module:', error);
+		}
 	}
 
 	cleanup() {

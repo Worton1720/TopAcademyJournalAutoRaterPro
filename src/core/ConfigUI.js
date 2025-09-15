@@ -41,13 +41,16 @@ export class ConfigUI {
 
 		// Настройка масштаба
 		const zoomLabel = document.createElement('label');
-		zoomLabel.textContent = 'Масштаб страницы:';
+		zoomLabel.textContent = 'Масштаб страницы (%):';
 		zoomLabel.style.display = 'block';
 		zoomLabel.style.marginBottom = '5px';
 
 		const zoomInput = document.createElement('input');
-		zoomInput.type = 'text';
-		zoomInput.value = this.currentConfig.ZOOM_LEVEL;
+		zoomInput.type = 'number';
+		zoomInput.min = '10';
+		zoomInput.max = '200';
+		zoomInput.step = '5';
+		zoomInput.value = this.parseZoomValue(this.currentConfig.ZOOM_LEVEL);
 		zoomInput.style.width = '100%';
 		zoomInput.style.padding = '8px';
 		zoomInput.style.marginBottom = '15px';
@@ -69,37 +72,6 @@ export class ConfigUI {
 
 		autoRateLabel.appendChild(autoRateCheckbox);
 		autoRateLabel.appendChild(autoRateText);
-
-		// Авто-отправка
-		const autoSubmitLabel = document.createElement('label');
-		autoSubmitLabel.style.display = 'flex';
-		autoSubmitLabel.style.alignItems = 'center';
-		autoSubmitLabel.style.marginBottom = '15px';
-
-		const autoSubmitCheckbox = document.createElement('input');
-		autoSubmitCheckbox.type = 'checkbox';
-		autoSubmitCheckbox.checked = this.currentConfig.AUTO_SUBMIT_ENABLED;
-		autoSubmitCheckbox.style.marginRight = '10px';
-
-		const autoSubmitText = document.createElement('span');
-		autoSubmitText.textContent = 'Автоматически отправлять оценку';
-
-		autoSubmitLabel.appendChild(autoSubmitCheckbox);
-		autoSubmitLabel.appendChild(autoSubmitText);
-
-		// Regex для страницы прогресса
-		const regexLabel = document.createElement('label');
-		regexLabel.textContent = 'Regex для страницы прогресса:';
-		regexLabel.style.display = 'block';
-		regexLabel.style.marginBottom = '5px';
-
-		const regexInput = document.createElement('input');
-		regexInput.type = 'text';
-		regexInput.value = this.currentConfig.PROGRESS_PAGE_REGEX.toString();
-		regexInput.style.width = '100%';
-		regexInput.style.padding = '8px';
-		regexInput.style.marginBottom = '15px';
-		regexInput.style.boxSizing = 'border-box';
 
 		// Кнопки
 		const buttonsContainer = document.createElement('div');
@@ -132,9 +104,6 @@ export class ConfigUI {
 		form.appendChild(zoomLabel);
 		form.appendChild(zoomInput);
 		form.appendChild(autoRateLabel);
-		form.appendChild(autoSubmitLabel);
-		form.appendChild(regexLabel);
-		form.appendChild(regexInput);
 		form.appendChild(buttonsContainer);
 
 		this.modal.appendChild(title);
@@ -163,11 +132,15 @@ export class ConfigUI {
 		cancelButton.addEventListener('click', closeModal);
 
 		saveButton.addEventListener('click', () => {
+			const zoomValue = zoomInput.value;
+			if (zoomValue < 10 || zoomValue > 200) {
+				alert('Масштаб должен быть от 10 до 200%');
+				return;
+			}
+
 			const newConfig = {
-				ZOOM_LEVEL: zoomInput.value,
+				ZOOM_LEVEL: `${zoomValue}%`,
 				AUTO_RATE_ENABLED: autoRateCheckbox.checked,
-				AUTO_SUBMIT_ENABLED: autoSubmitCheckbox.checked,
-				PROGRESS_PAGE_REGEX: regexInput.value,
 			};
 
 			this.onSave(newConfig);
@@ -177,6 +150,15 @@ export class ConfigUI {
 		// Добавление в DOM
 		document.body.appendChild(overlay);
 		document.body.appendChild(this.modal);
+	}
+
+	// Метод для извлечения числового значения из строки с процентами
+	parseZoomValue(zoomString) {
+		if (typeof zoomString === 'string') {
+			const numericValue = parseInt(zoomString.replace('%', ''), 10);
+			return isNaN(numericValue) ? 80 : numericValue;
+		}
+		return 80; // Значение по умолчанию
 	}
 
 	hide() {

@@ -16,22 +16,19 @@ export class App {
 		if (this.isInitialized) return;
 
 		try {
-			// Ждем загрузки DOM
-			if (document.readyState === 'loading') {
-				await new Promise(resolve =>
-					document.addEventListener('DOMContentLoaded', resolve)
-				);
+			// Проверка доступности GM функций
+			if (typeof GM_registerMenuCommand === 'undefined') {
+				console.warn('GM функции недоступны. Меню не будет создано.');
 			}
 
 			// Загрузка конфигурации
 			await this.configManager.loadConfig();
 
-			// Откладываем инициализацию модулей на следующий кадр
-			requestAnimationFrame(() => {
-				this.initModules();
-				this.isInitialized = true;
-				this.eventBus.emit('app:initialized');
-			});
+			// Инициализация модулей
+			this.initModules();
+
+			this.isInitialized = true;
+			this.eventBus.emit('app:initialized');
 		} catch (error) {
 			console.error('Ошибка инициализации приложения:', error);
 		}
@@ -44,7 +41,7 @@ export class App {
 			new AttendanceModule({
 				eventBus: this.eventBus,
 				config: this.configManager.config,
-			})
+			}),
 		);
 
 		// Модуль авто-оценки
@@ -53,7 +50,7 @@ export class App {
 			new AutoRaterModule({
 				eventBus: this.eventBus,
 				config: this.configManager.config,
-			})
+			}),
 		);
 
 		// Модуль UI
@@ -62,7 +59,7 @@ export class App {
 			new UIModule({
 				eventBus: this.eventBus,
 				configManager: this.configManager,
-			})
+			}),
 		);
 
 		// Инициализация всех модулей

@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name      Top Academy Journal Auto Rater Pro
-// @version      0.5
+// @version      0.6
 // @description      Автоматизация процессов journal
 // @author      Rodion
 // @match      https://journal.top-academy.ru/*
@@ -24,26 +24,62 @@
 	class ConfigManager {
 		constructor() {
 			this.config = { ...DEFAULT_CONFIG };
+			this.listeners = new Set();
 		}
 
 		async loadConfig() {
 			try {
 				const userConfig = await GM_getValue('config', {});
-				this.config = { ...DEFAULT_CONFIG, ...userConfig };
-				this.normalizeConfig();
+
+				// Обеспечиваем корректный формат ZOOM_LEVEL
+				let zoomLevel = userConfig.ZOOM_LEVEL || DEFAULT_CONFIG.ZOOM_LEVEL;
+				if (typeof zoomLevel === 'number') {
+					zoomLevel = `${zoomLevel}%`;
+				} else if (typeof zoomLevel === 'string' && !zoomLevel.includes('%')) {
+					zoomLevel = `${zoomLevel}%`;
+				}
+
+				this.config = {
+					...DEFAULT_CONFIG,
+					...userConfig,
+					ZOOM_LEVEL: zoomLevel,
+				};
+				this.notifyListeners();
 			} catch (error) {
 				console.warn(
-					'Ошибка загрузки конфигурации, используются значения по умолчанию'
+					'Ошибка загрузки конфигурации, используются значения по умолчанию.\nWarning: ' +
+						error,
 				);
 				this.config = { ...DEFAULT_CONFIG };
+				this.notifyListeners();
 			}
 		}
 
 		async saveConfig(newConfig) {
 			try {
-				this.config = { ...this.config, ...newConfig };
-				this.normalizeConfig();
-				await GM_setValue('config', this.config);
+				// Обеспечиваем корректный формат ZOOM_LEVEL
+				let zoomLevel = newConfig.ZOOM_LEVEL || this.config.ZOOM_LEVEL;
+				if (typeof zoomLevel === 'number') {
+					zoomLevel = `${zoomLevel}%`;
+				} else if (typeof zoomLevel === 'string' && !zoomLevel.includes('%')) {
+					zoomLevel = `${zoomLevel}%`;
+				}
+
+				this.config = {
+					...this.config,
+					...newConfig,
+					ZOOM_LEVEL: zoomLevel,
+				};
+
+				// Сохраняем как строку, чтобы избежать проблем с сериализацией RegExp
+				const configToSave = { ...this.config };
+				if (configToSave.PROGRESS_PAGE_REGEX instanceof RegExp) {
+					configToSave.PROGRESS_PAGE_REGEX =
+						configToSave.PROGRESS_PAGE_REGEX.toString();
+				}
+
+				await GM_setValue('config', configToSave);
+				this.notifyListeners();
 				return true;
 			} catch (error) {
 				console.error('Ошибка сохранения конфигурации:', error);
@@ -51,25 +87,35 @@
 			}
 		}
 
-		normalizeConfig() {
-			// Нормализация regex
-			if (typeof this.config.PROGRESS_PAGE_REGEX === 'string') {
+		// Добавляем слушателей изменений конфигурации
+		addChangeListener(listener) {
+			this.listeners.add(listener);
+			return () => this.listeners.delete(listener);
+		}
+
+		removeChangeListener(listener) {
+			this.listeners.delete(listener);
+		}
+
+		notifyListeners() {
+			this.listeners.forEach(listener => {
 				try {
-					this.config.PROGRESS_PAGE_REGEX = new RegExp(
-						this.config.PROGRESS_PAGE_REGEX
-					);
-				} catch {
-					this.config.PROGRESS_PAGE_REGEX = new RegExp(
-						DEFAULT_CONFIG.PROGRESS_PAGE_REGEX
-					);
+					listener(this.config);
+				} catch (error) {
+					console.error('Ошибка в слушателе конфигурации:', error);
 				}
-			}
+			});
 		}
 
 		registerMenuCommands(eventBus) {
-			GM_registerMenuCommand('Настройки скрипта', () => {
-				eventBus.emit('config:show-ui');
-			});
+			try {
+				GM_registerMenuCommand('Настройки скрипта', () => {
+					eventBus.emit('config:show-ui');
+				});
+				console.log('Меню-команда "Настройки скрипта" зарегистрирована');
+			} catch (error) {
+				console.error('Ошибка регистрации меню-команды:', error);
+			}
 		}
 	}
 
@@ -240,7 +286,7 @@
 			this.rangeEnd = null;
 			this.updateAttendanceStats = debounce(
 				this.updateAttendanceStats.bind(this),
-				300
+				300,
 			);
 			this.navigationObserver = null;
 			this.lastUrl = window.location.href;
@@ -249,7 +295,7 @@
 
 		init() {
 			this.setupEventListeners();
-			this.setPageZoom();
+			this.applyConfigImmediately(); // Применяем конфигурацию сразу
 			if (this.isProgressPage()) this.initAttendanceStats();
 			this.setupNavigationObserver();
 		}
@@ -260,7 +306,7 @@
 		}
 
 		onConfigUpdated() {
-			this.setPageZoom();
+			this.applyConfigImmediately(); // Применяем конфигурацию немедленно
 			if (this.isProgressPage()) {
 				this.updateAttendanceStats();
 			} else {
@@ -268,20 +314,44 @@
 			}
 		}
 
-		onPageChanged() {
-			if (this.isProgressPage()) {
-				this.initAttendanceStats();
-			} else {
-				removeWidget();
-			}
+		// Новый метод для немедленного применения конфигурации
+		applyConfigImmediately() {
+			this.setPageZoom();
 		}
 
 		setPageZoom() {
-			document.documentElement.style.zoom = this.config.ZOOM_LEVEL;
+			// Убеждаемся, что значение имеет правильный формат
+			let zoomValue = this.config.ZOOM_LEVEL;
+			if (typeof zoomValue === 'number') {
+				zoomValue = `${zoomValue}%`;
+			} else if (typeof zoomValue === 'string' && !zoomValue.includes('%')) {
+				zoomValue = `${zoomValue}%`;
+			}
+
+			document.documentElement.style.zoom = zoomValue;
 		}
 
 		isProgressPage() {
-			return this.config.PROGRESS_PAGE_REGEX.test(window.location.href);
+			// Защита от неправильного типа
+			if (typeof this.config.PROGRESS_PAGE_REGEX === 'string') {
+				try {
+					return new RegExp(this.config.PROGRESS_PAGE_REGEX).test(
+						window.location.href,
+					);
+				} catch (error) {
+					console.error('Invalid regex pattern:', error);
+					return false;
+				}
+			}
+
+			if (this.config.PROGRESS_PAGE_REGEX instanceof RegExp) {
+				return this.config.PROGRESS_PAGE_REGEX.test(window.location.href);
+			}
+
+			// Fallback
+			return /https:\/\/journal\.top-academy\.ru\/.*\/main\/progress\/.*/.test(
+				window.location.href,
+			);
 		}
 
 		initAttendanceStats() {
@@ -298,8 +368,6 @@
 		setDefaultDateRange() {
 			const now = new Date();
 			const yyyy = now.getFullYear();
-			String(now.getMonth() + 1).padStart(2, '0');
-			String(now.getDate()).padStart(2, '0');
 
 			this.rangeStart = new Date(yyyy, now.getMonth(), 1);
 			this.rangeStart.setHours(0, 0, 0, 0);
@@ -366,21 +434,12 @@
 					this.rangeEnd = null;
 				}
 
-				// Нормализуем диапазон (чтобы start всегда был ≤ end)
-				this.normalizeDateRange();
+				// Убрали нормализацию - применяем как есть
 				this.updateAttendanceStats();
 			};
 
 			dateFromInput.addEventListener('change', handleDateChange);
 			dateToInput.addEventListener('change', handleDateChange);
-		}
-
-		// Нормализация диапазона дат
-		normalizeDateRange() {
-			if (this.rangeStart && this.rangeEnd && this.rangeStart > this.rangeEnd) {
-				[this.rangeStart, this.rangeEnd] = [this.rangeEnd, this.rangeStart];
-				this.syncDateInputs();
-			}
 		}
 
 		updateAttendanceStats() {
@@ -414,7 +473,7 @@
 			const dateTo = this.rangeEnd;
 
 			const lessons = document.querySelectorAll(
-				'.lessons, .lessons.lateness, .lessons.pass'
+				'.lessons, .lessons.lateness, .lessons.pass',
 			);
 			let total = 0,
 				lateness = 0,
@@ -470,7 +529,7 @@
 		setupRangeSelection() {
 			document.body.addEventListener('click', e => {
 				const lesson = e.target.closest(
-					'.lessons, .lessons.lateness, .lessons.pass'
+					'.lessons, .lessons.lateness, .lessons.pass',
 				);
 				if (!lesson) return;
 
@@ -490,11 +549,10 @@
 				} else {
 					// При обычном клике устанавливаем начальную дату
 					this.rangeStart = lessonDate;
-					this.rangeEnd = lessonDate; // Сбрасываем конечную дату
+					this.rangeEnd = null; // Сбрасываем конечную дату
 				}
 
-				// Нормализуем диапазон
-				this.normalizeDateRange();
+				// Убрали нормализацию - применяем как есть
 				this.updateAttendanceStats();
 			});
 		}
@@ -505,7 +563,7 @@
 
 			requestAnimationFrame(async () => {
 				const lessons = document.querySelectorAll(
-					'.lessons, .lessons.lateness, .lessons.pass'
+					'.lessons, .lessons.lateness, .lessons.pass',
 				);
 
 				for (let i = 0; i < lessons.length; i++) {
@@ -520,11 +578,18 @@
 					const dt = new Date(y, m - 1, d);
 					dt.setHours(12, 0, 0, 0);
 
-					if (dt >= this.rangeStart && dt <= this.rangeEnd) {
+					// Проверяем диапазон без нормализации
+					const isInRange =
+						this.rangeStart &&
+						dt >= this.rangeStart &&
+						this.rangeEnd &&
+						dt <= this.rangeEnd;
+
+					if (isInRange) {
 						// Разные стили для граничных дат
 						if (
-							dt.getTime() === this.rangeStart.getTime() ||
-							dt.getTime() === this.rangeEnd.getTime()
+							(this.rangeStart && dt.getTime() === this.rangeStart.getTime()) ||
+							(this.rangeEnd && dt.getTime() === this.rangeEnd.getTime())
 						) {
 							lesson.style.border = '2px solid #ff6b00'; // Оранжевый для границ
 						} else {
@@ -560,7 +625,7 @@
 			this.navigationObserver = new MutationObserver(mutations => {
 				const hasSignificantChange = mutations.some(
 					mutation =>
-						mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0
+						mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0,
 				);
 
 				if (hasSignificantChange) {
@@ -627,7 +692,7 @@
 		setupEventListeners() {
 			this.eventBus.on('config:updated', () => this.onConfigUpdated());
 			this.eventBus.on('homework:modal-opened', modal =>
-				this.onHomeworkModalOpened(modal)
+				this.onHomeworkModalOpened(modal),
 			);
 		}
 
@@ -651,7 +716,7 @@
 			this.observer = new MutationObserver(mutations => {
 				// Быстрая проверка - только если добавлены узлы
 				const hasAddedNodes = mutations.some(
-					mutation => mutation.addedNodes.length > 0
+					mutation => mutation.addedNodes.length > 0,
 				);
 
 				if (hasAddedNodes) {
@@ -706,7 +771,7 @@
 			return new Promise(resolve => {
 				setTimeout(() => {
 					const timeInputs = document.querySelectorAll(
-						'.text-homework-time-spent-wrap input'
+						'.text-homework-time-spent-wrap input',
 					);
 
 					if (timeInputs.length >= 2) {
@@ -778,7 +843,7 @@
 						console.log(
 							`Тег ${
 							index + 1
-						}: "${tagText}", видим: ${isVisible}, выбран: ${isSelected}`
+						}: "${tagText}", видим: ${isVisible}, выбран: ${isSelected}`,
 						);
 					});
 
@@ -823,7 +888,7 @@
 						submitButton.click();
 					} else if (submitButton && submitButton.disabled) {
 						console.log(
-							'⚠️ Кнопка отправки недоступна, проверьте заполнение полей'
+							'⚠️ Кнопка отправки недоступна, проверьте заполнение полей',
 						);
 					}
 					resolve();
@@ -836,7 +901,7 @@
 		 */
 		startRetryCycle(container, containerId, attempt) {
 			if (attempt >= this.retryAttempts) {
-				console.log(`❌ Превышено максимальное количество попыток для оценки ДЗ`);
+				console.log('❌ Превышено максимальное количество попыток для оценки ДЗ');
 				this.pendingRetries.delete(containerId);
 				return;
 			}
@@ -844,14 +909,14 @@
 			console.log(
 				`⏳ Перепроверка оценки ДЗ (попытка ${attempt + 1}/${
 				this.retryAttempts
-			})...`
+			})...`,
 			);
 
 			this.pendingRetries.set(
 				containerId,
 				setTimeout(() => {
 					this.checkRatingSuccess(container, containerId, attempt);
-				}, this.retryDelay)
+				}, this.retryDelay),
 			);
 		}
 
@@ -942,6 +1007,176 @@
 		}
 	}
 
+	class ConfigUI {
+		constructor(currentConfig, onSave) {
+			this.currentConfig = { ...currentConfig };
+			this.onSave = onSave;
+			this.modal = null;
+		}
+
+		show() {
+			if (this.modal) {
+				this.modal.style.display = 'block';
+				return;
+			}
+
+			this.createModal();
+		}
+
+		createModal() {
+			// Создание модального окна
+			this.modal = document.createElement('div');
+			this.modal.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            z-index: 10000;
+            min-width: 400px;
+            font-family: Arial, sans-serif;
+        `;
+
+			// Заголовок
+			const title = document.createElement('h3');
+			title.textContent = 'Настройки скрипта';
+			title.style.marginTop = '0';
+
+			// Форма настроек
+			const form = document.createElement('div');
+
+			// Настройка масштаба
+			const zoomLabel = document.createElement('label');
+			zoomLabel.textContent = 'Масштаб страницы (%):';
+			zoomLabel.style.display = 'block';
+			zoomLabel.style.marginBottom = '5px';
+
+			const zoomInput = document.createElement('input');
+			zoomInput.type = 'number';
+			zoomInput.min = '10';
+			zoomInput.max = '200';
+			zoomInput.step = '5';
+			zoomInput.value = this.parseZoomValue(this.currentConfig.ZOOM_LEVEL);
+			zoomInput.style.width = '100%';
+			zoomInput.style.padding = '8px';
+			zoomInput.style.marginBottom = '15px';
+			zoomInput.style.boxSizing = 'border-box';
+
+			// Авто-оценка
+			const autoRateLabel = document.createElement('label');
+			autoRateLabel.style.display = 'flex';
+			autoRateLabel.style.alignItems = 'center';
+			autoRateLabel.style.marginBottom = '15px';
+
+			const autoRateCheckbox = document.createElement('input');
+			autoRateCheckbox.type = 'checkbox';
+			autoRateCheckbox.checked = this.currentConfig.AUTO_RATE_ENABLED;
+			autoRateCheckbox.style.marginRight = '10px';
+
+			const autoRateText = document.createElement('span');
+			autoRateText.textContent = 'Включить авто-оценку домашних заданий';
+
+			autoRateLabel.appendChild(autoRateCheckbox);
+			autoRateLabel.appendChild(autoRateText);
+
+			// Кнопки
+			const buttonsContainer = document.createElement('div');
+			buttonsContainer.style.display = 'flex';
+			buttonsContainer.style.justifyContent = 'space-between';
+			buttonsContainer.style.marginTop = '20px';
+
+			const saveButton = document.createElement('button');
+			saveButton.textContent = 'Сохранить';
+			saveButton.style.padding = '10px 20px';
+			saveButton.style.background = '#007bff';
+			saveButton.style.color = 'white';
+			saveButton.style.border = 'none';
+			saveButton.style.borderRadius = '4px';
+			saveButton.style.cursor = 'pointer';
+
+			const cancelButton = document.createElement('button');
+			cancelButton.textContent = 'Отмена';
+			cancelButton.style.padding = '10px 20px';
+			cancelButton.style.background = '#6c757d';
+			cancelButton.style.color = 'white';
+			cancelButton.style.border = 'none';
+			cancelButton.style.borderRadius = '4px';
+			cancelButton.style.cursor = 'pointer';
+
+			buttonsContainer.appendChild(saveButton);
+			buttonsContainer.appendChild(cancelButton);
+
+			// Сборка формы
+			form.appendChild(zoomLabel);
+			form.appendChild(zoomInput);
+			form.appendChild(autoRateLabel);
+			form.appendChild(buttonsContainer);
+
+			this.modal.appendChild(title);
+			this.modal.appendChild(form);
+
+			// Затемнение фона
+			const overlay = document.createElement('div');
+			overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 9999;
+        `;
+
+			// Обработчики событий
+			const closeModal = () => {
+				document.body.removeChild(overlay);
+				document.body.removeChild(this.modal);
+				this.modal = null;
+			};
+
+			overlay.addEventListener('click', closeModal);
+			cancelButton.addEventListener('click', closeModal);
+
+			saveButton.addEventListener('click', () => {
+				const zoomValue = zoomInput.value;
+				if (zoomValue < 10 || zoomValue > 200) {
+					alert('Масштаб должен быть от 10 до 200%');
+					return;
+				}
+
+				const newConfig = {
+					ZOOM_LEVEL: `${zoomValue}%`,
+					AUTO_RATE_ENABLED: autoRateCheckbox.checked,
+				};
+
+				this.onSave(newConfig);
+				closeModal();
+			});
+
+			// Добавление в DOM
+			document.body.appendChild(overlay);
+			document.body.appendChild(this.modal);
+		}
+
+		// Метод для извлечения числового значения из строки с процентами
+		parseZoomValue(zoomString) {
+			if (typeof zoomString === 'string') {
+				const numericValue = parseInt(zoomString.replace('%', ''), 10);
+				return isNaN(numericValue) ? 80 : numericValue;
+			}
+			return 80; // Значение по умолчанию
+		}
+
+		hide() {
+			if (this.modal) {
+				this.modal.style.display = 'none';
+			}
+		}
+	}
+
 	class UIModule {
 		constructor({ eventBus, configManager }) {
 			this.eventBus = eventBus;
@@ -951,6 +1186,7 @@
 
 		init() {
 			this.setupEventListeners();
+			// Убедитесь, что этот метод вызывается
 			this.configManager.registerMenuCommands(this.eventBus);
 		}
 
@@ -959,19 +1195,26 @@
 		}
 
 		showConfigUI() {
-			if (this.configUI) {
-				this.configUI.show();
-				return;
-			}
-
-			// Убрали динамический импорт, используем прямой
-			this.configUI = new ConfigUI(this.configManager.config, async newConfig => {
-				const success = await this.configManager.saveConfig(newConfig);
-				if (success) {
-					this.eventBus.emit('config:updated');
+			try {
+				if (this.configUI) {
+					this.configUI.show();
+					return;
 				}
-			});
-			this.configUI.show();
+
+				// Убрали динамический импорт, используем прямой
+				this.configUI = new ConfigUI(
+					this.configManager.config,
+					async newConfig => {
+						const success = await this.configManager.saveConfig(newConfig);
+						if (success) {
+							this.eventBus.emit('config:updated');
+						}
+					},
+				);
+				this.configUI.show();
+			} catch (error) {
+				console.error('Failed to load ConfigUI module:', error);
+			}
 		}
 
 		cleanup() {
@@ -991,22 +1234,19 @@
 			if (this.isInitialized) return;
 
 			try {
-				// Ждем загрузки DOM
-				if (document.readyState === 'loading') {
-					await new Promise(resolve =>
-						document.addEventListener('DOMContentLoaded', resolve)
-					);
+				// Проверка доступности GM функций
+				if (typeof GM_registerMenuCommand === 'undefined') {
+					console.warn('GM функции недоступны. Меню не будет создано.');
 				}
 
 				// Загрузка конфигурации
 				await this.configManager.loadConfig();
 
-				// Откладываем инициализацию модулей на следующий кадр
-				requestAnimationFrame(() => {
-					this.initModules();
-					this.isInitialized = true;
-					this.eventBus.emit('app:initialized');
-				});
+				// Инициализация модулей
+				this.initModules();
+
+				this.isInitialized = true;
+				this.eventBus.emit('app:initialized');
 			} catch (error) {
 				console.error('Ошибка инициализации приложения:', error);
 			}
@@ -1019,7 +1259,7 @@
 				new AttendanceModule({
 					eventBus: this.eventBus,
 					config: this.configManager.config,
-				})
+				}),
 			);
 
 			// Модуль авто-оценки
@@ -1028,7 +1268,7 @@
 				new AutoRaterModule({
 					eventBus: this.eventBus,
 					config: this.configManager.config,
-				})
+				}),
 			);
 
 			// Модуль UI
@@ -1037,7 +1277,7 @@
 				new UIModule({
 					eventBus: this.eventBus,
 					configManager: this.configManager,
-				})
+				}),
 			);
 
 			// Инициализация всех модулей

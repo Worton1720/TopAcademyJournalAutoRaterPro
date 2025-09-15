@@ -29,7 +29,7 @@ export class AutoRaterModule {
 	setupEventListeners() {
 		this.eventBus.on('config:updated', () => this.onConfigUpdated());
 		this.eventBus.on('homework:modal-opened', modal =>
-			this.onHomeworkModalOpened(modal)
+			this.onHomeworkModalOpened(modal),
 		);
 	}
 
@@ -53,7 +53,7 @@ export class AutoRaterModule {
 		this.observer = new MutationObserver(mutations => {
 			// Быстрая проверка - только если добавлены узлы
 			const hasAddedNodes = mutations.some(
-				mutation => mutation.addedNodes.length > 0
+				mutation => mutation.addedNodes.length > 0,
 			);
 
 			if (hasAddedNodes) {
@@ -108,7 +108,7 @@ export class AutoRaterModule {
 		return new Promise(resolve => {
 			setTimeout(() => {
 				const timeInputs = document.querySelectorAll(
-					'.text-homework-time-spent-wrap input'
+					'.text-homework-time-spent-wrap input',
 				);
 
 				if (timeInputs.length >= 2) {
@@ -180,7 +180,7 @@ export class AutoRaterModule {
 					console.log(
 						`Тег ${
 							index + 1
-						}: "${tagText}", видим: ${isVisible}, выбран: ${isSelected}`
+						}: "${tagText}", видим: ${isVisible}, выбран: ${isSelected}`,
 					);
 				});
 
@@ -225,7 +225,7 @@ export class AutoRaterModule {
 					submitButton.click();
 				} else if (submitButton && submitButton.disabled) {
 					console.log(
-						'⚠️ Кнопка отправки недоступна, проверьте заполнение полей'
+						'⚠️ Кнопка отправки недоступна, проверьте заполнение полей',
 					);
 				}
 				resolve();
@@ -238,7 +238,7 @@ export class AutoRaterModule {
 	 */
 	startRetryCycle(container, containerId, attempt) {
 		if (attempt >= this.retryAttempts) {
-			console.log(`❌ Превышено максимальное количество попыток для оценки ДЗ`);
+			console.log('❌ Превышено максимальное количество попыток для оценки ДЗ');
 			this.pendingRetries.delete(containerId);
 			return;
 		}
@@ -246,14 +246,14 @@ export class AutoRaterModule {
 		console.log(
 			`⏳ Перепроверка оценки ДЗ (попытка ${attempt + 1}/${
 				this.retryAttempts
-			})...`
+			})...`,
 		);
 
 		this.pendingRetries.set(
 			containerId,
 			setTimeout(() => {
 				this.checkRatingSuccess(container, containerId, attempt);
-			}, this.retryDelay)
+			}, this.retryDelay),
 		);
 	}
 

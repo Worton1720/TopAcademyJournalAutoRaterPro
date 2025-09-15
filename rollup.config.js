@@ -9,9 +9,6 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Проверка переменной окружения
-const MINIFY = process.env.MINIFY === 'true';
-
 // Генерация заголовка UserScript
 function userScriptHeader() {
 	return {
@@ -37,17 +34,28 @@ function userScriptHeader() {
 	};
 }
 
-export default {
-	input: 'src/main.js',
-	output: {
-		file: MINIFY ? 'dist/prod/main.user.js' : 'dist/dev/main.user.js',
-		format: 'iife',
-		sourcemap: false,
+// Базовые плагины
+const basePlugins = [resolve(), commonjs(), userScriptHeader()];
+
+export default [
+	// Неминифицированная версия (dev)
+	{
+		input: 'src/main.js',
+		output: {
+			file: 'dist/dev/main.user.js',
+			format: 'iife',
+			sourcemap: false,
+		},
+		plugins: basePlugins,
 	},
-	plugins: [
-		resolve(),
-		commonjs(),
-		MINIFY ? terser() : null,
-		userScriptHeader(),
-	].filter(Boolean), // убираем null из массива плагинов
-};
+	// Минифицированная версия (prod)
+	{
+		input: 'src/main.js',
+		output: {
+			file: 'dist/prod/main.user.js',
+			format: 'iife',
+			sourcemap: false,
+		},
+		plugins: [...basePlugins, terser()],
+	},
+];

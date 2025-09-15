@@ -11,7 +11,7 @@ export class AttendanceModule {
 		this.rangeEnd = null;
 		this.updateAttendanceStats = debounce(
 			this.updateAttendanceStats.bind(this),
-			300
+			300,
 		);
 		this.navigationObserver = null;
 		this.lastUrl = window.location.href;
@@ -20,7 +20,7 @@ export class AttendanceModule {
 
 	init() {
 		this.setupEventListeners();
-		this.setPageZoom();
+		this.applyConfigImmediately(); // Применяем конфигурацию сразу
 		if (this.isProgressPage()) this.initAttendanceStats();
 		this.setupNavigationObserver();
 	}
@@ -31,7 +31,7 @@ export class AttendanceModule {
 	}
 
 	onConfigUpdated() {
-		this.setPageZoom();
+		this.applyConfigImmediately(); // Применяем конфигурацию немедленно
 		if (this.isProgressPage()) {
 			this.updateAttendanceStats();
 		} else {
@@ -39,20 +39,44 @@ export class AttendanceModule {
 		}
 	}
 
-	onPageChanged() {
-		if (this.isProgressPage()) {
-			this.initAttendanceStats();
-		} else {
-			removeWidget();
-		}
+	// Новый метод для немедленного применения конфигурации
+	applyConfigImmediately() {
+		this.setPageZoom();
 	}
 
 	setPageZoom() {
-		document.documentElement.style.zoom = this.config.ZOOM_LEVEL;
+		// Убеждаемся, что значение имеет правильный формат
+		let zoomValue = this.config.ZOOM_LEVEL;
+		if (typeof zoomValue === 'number') {
+			zoomValue = `${zoomValue}%`;
+		} else if (typeof zoomValue === 'string' && !zoomValue.includes('%')) {
+			zoomValue = `${zoomValue}%`;
+		}
+
+		document.documentElement.style.zoom = zoomValue;
 	}
 
 	isProgressPage() {
-		return this.config.PROGRESS_PAGE_REGEX.test(window.location.href);
+		// Защита от неправильного типа
+		if (typeof this.config.PROGRESS_PAGE_REGEX === 'string') {
+			try {
+				return new RegExp(this.config.PROGRESS_PAGE_REGEX).test(
+					window.location.href,
+				);
+			} catch (error) {
+				console.error('Invalid regex pattern:', error);
+				return false;
+			}
+		}
+
+		if (this.config.PROGRESS_PAGE_REGEX instanceof RegExp) {
+			return this.config.PROGRESS_PAGE_REGEX.test(window.location.href);
+		}
+
+		// Fallback
+		return /https:\/\/journal\.top-academy\.ru\/.*\/main\/progress\/.*/.test(
+			window.location.href,
+		);
 	}
 
 	initAttendanceStats() {
@@ -69,8 +93,6 @@ export class AttendanceModule {
 	setDefaultDateRange() {
 		const now = new Date();
 		const yyyy = now.getFullYear();
-		const mm = String(now.getMonth() + 1).padStart(2, '0');
-		const dd = String(now.getDate()).padStart(2, '0');
 
 		this.rangeStart = new Date(yyyy, now.getMonth(), 1);
 		this.rangeStart.setHours(0, 0, 0, 0);
@@ -137,21 +159,12 @@ export class AttendanceModule {
 				this.rangeEnd = null;
 			}
 
-			// Нормализуем диапазон (чтобы start всегда был ≤ end)
-			this.normalizeDateRange();
+			// Убрали нормализацию - применяем как есть
 			this.updateAttendanceStats();
 		};
 
 		dateFromInput.addEventListener('change', handleDateChange);
 		dateToInput.addEventListener('change', handleDateChange);
-	}
-
-	// Нормализация диапазона дат
-	normalizeDateRange() {
-		if (this.rangeStart && this.rangeEnd && this.rangeStart > this.rangeEnd) {
-			[this.rangeStart, this.rangeEnd] = [this.rangeEnd, this.rangeStart];
-			this.syncDateInputs();
-		}
 	}
 
 	updateAttendanceStats() {
@@ -185,7 +198,7 @@ export class AttendanceModule {
 		const dateTo = this.rangeEnd;
 
 		const lessons = document.querySelectorAll(
-			'.lessons, .lessons.lateness, .lessons.pass'
+			'.lessons, .lessons.lateness, .lessons.pass',
 		);
 		let total = 0,
 			lateness = 0,
@@ -241,7 +254,7 @@ export class AttendanceModule {
 	setupRangeSelection() {
 		document.body.addEventListener('click', e => {
 			const lesson = e.target.closest(
-				'.lessons, .lessons.lateness, .lessons.pass'
+				'.lessons, .lessons.lateness, .lessons.pass',
 			);
 			if (!lesson) return;
 
@@ -261,11 +274,10 @@ export class AttendanceModule {
 			} else {
 				// При обычном клике устанавливаем начальную дату
 				this.rangeStart = lessonDate;
-				this.rangeEnd = lessonDate; // Сбрасываем конечную дату
+				this.rangeEnd = null; // Сбрасываем конечную дату
 			}
 
-			// Нормализуем диапазон
-			this.normalizeDateRange();
+			// Убрали нормализацию - применяем как есть
 			this.updateAttendanceStats();
 		});
 	}
@@ -276,7 +288,7 @@ export class AttendanceModule {
 
 		requestAnimationFrame(async () => {
 			const lessons = document.querySelectorAll(
-				'.lessons, .lessons.lateness, .lessons.pass'
+				'.lessons, .lessons.lateness, .lessons.pass',
 			);
 
 			for (let i = 0; i < lessons.length; i++) {
@@ -291,11 +303,18 @@ export class AttendanceModule {
 				const dt = new Date(y, m - 1, d);
 				dt.setHours(12, 0, 0, 0);
 
-				if (dt >= this.rangeStart && dt <= this.rangeEnd) {
+				// Проверяем диапазон без нормализации
+				const isInRange =
+					this.rangeStart &&
+					dt >= this.rangeStart &&
+					this.rangeEnd &&
+					dt <= this.rangeEnd;
+
+				if (isInRange) {
 					// Разные стили для граничных дат
 					if (
-						dt.getTime() === this.rangeStart.getTime() ||
-						dt.getTime() === this.rangeEnd.getTime()
+						(this.rangeStart && dt.getTime() === this.rangeStart.getTime()) ||
+						(this.rangeEnd && dt.getTime() === this.rangeEnd.getTime())
 					) {
 						lesson.style.border = '2px solid #ff6b00'; // Оранжевый для границ
 					} else {
@@ -331,7 +350,7 @@ export class AttendanceModule {
 		this.navigationObserver = new MutationObserver(mutations => {
 			const hasSignificantChange = mutations.some(
 				mutation =>
-					mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0
+					mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0,
 			);
 
 			if (hasSignificantChange) {
