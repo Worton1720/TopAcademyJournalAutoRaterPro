@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name      Top Academy Journal Auto Rater Pro
-// @version      0.6
+// @version      0.6.1
 // @description      Автоматизация процессов journal
 // @author      Rodion
 // @match      https://journal.top-academy.ru/*
@@ -295,7 +295,7 @@
 
 		init() {
 			this.setupEventListeners();
-			this.applyConfigImmediately(); // Применяем конфигурацию сразу
+			this.applyConfigImmediately();
 			if (this.isProgressPage()) this.initAttendanceStats();
 			this.setupNavigationObserver();
 		}
@@ -306,9 +306,17 @@
 		}
 
 		onConfigUpdated() {
-			this.applyConfigImmediately(); // Применяем конфигурацию немедленно
+			this.applyConfigImmediately();
 			if (this.isProgressPage()) {
 				this.updateAttendanceStats();
+			} else {
+				removeWidget();
+			}
+		}
+
+		onPageChanged() {
+			if (this.isProgressPage()) {
+				this.initAttendanceStats();
 			} else {
 				removeWidget();
 			}
@@ -469,39 +477,36 @@
 		}
 
 		calculateStats() {
+			this.normalizeRange(); // Нормализуем перед расчётом
 			const dateFrom = this.rangeStart;
 			const dateTo = this.rangeEnd;
-
+			if (!dateFrom || !dateTo) {
+				return { total: 0, present: 0, lateness: 0, absent: 0, percentage: 0 };
+			}
 			const lessons = document.querySelectorAll(
 				'.lessons, .lessons.lateness, .lessons.pass',
 			);
 			let total = 0,
 				lateness = 0,
 				absent = 0;
-
 			for (let i = 0; i < lessons.length; i++) {
 				const lesson = lessons[i];
 				const dateText = lesson.querySelector('.date')?.textContent.trim();
 				if (!dateText) continue;
-
 				const [d, m, y] = dateText.split('.').map(Number);
 				const ld = new Date(y, m - 1, d);
-				ld.setHours(12, 0, 0, 0);
-
-				const afterStart = !dateFrom || ld >= dateFrom;
-				const beforeEnd = !dateTo || ld <= dateTo;
-
+				ld.setHours(12, 0, 0, 0); // Нормализация времени урока
+				const afterStart = ld >= dateFrom;
+				const beforeEnd = ld <= dateTo;
 				if (afterStart && beforeEnd) {
 					total++;
 					if (lesson.classList.contains('lateness')) lateness++;
 					if (lesson.classList.contains('pass')) absent++;
 				}
 			}
-
 			const present = total - (absent + lateness);
 			const percentage =
 				total > 0 ? (((present + lateness) / total) * 100).toFixed(1) : 0;
-
 			return { total, present, lateness, absent, percentage };
 		}
 
@@ -527,76 +532,106 @@
 		}
 
 		setupRangeSelection() {
-			document.body.addEventListener('click', e => {
-				const lesson = e.target.closest(
-					'.lessons, .lessons.lateness, .lessons.pass',
-				);
-				if (!lesson) return;
+			document.body.addEventListener(
+				'click',
+				e => {
+					const lesson = e.target.closest(
+						'.lessons, .lessons.lateness, .lessons.pass',
+					);
+					if (!lesson) return;
+					const dateEl = lesson.querySelector('.date');
+					if (!dateEl) return;
+					const [day, month, year] = dateEl.textContent
+						.trim()
+						.split('.')
+						.map(Number);
+					const lessonDate = new Date(year, month - 1, day);
+					lessonDate.setHours(12, 0, 0, 0); // Нормализация времени урока
+					e.preventDefault(); // Предотвращаем дефолтное поведение сайта
+					e.stopPropagation(); // Останавливаем всплытие
+					console.log(
+						'Клик обнаружен:',
+						e.shiftKey ? 'Shift + ЛКМ' : 'ЛКМ',
+						lessonDate.toDateString(),
+					); // Отладка
+					if (e.shiftKey) {
+						// Shift + клик: конечная дата
+						this.rangeEnd = lessonDate;
+						console.log('Установлена rangeEnd:', this.rangeEnd.toDateString());
+					} else {
+						// Обычный клик: начальная дата, сброс end
+						this.rangeStart = lessonDate;
+						this.rangeEnd = null;
+						console.log(
+							'Установлена rangeStart:',
+							this.rangeStart.toDateString(),
+							'rangeEnd сброшена',
+						);
+					}
+					this.normalizeRange(); // Нормализуем диапазон
+					this.syncDateInputs(); // Синхронизируем поля ввода
+					this.updateAttendanceStats(); // Обновляем статистику
+					this.highlightRange(); // Обновляем выделение
+				},
+				true,
+			); // true для capture phase
+		}
 
-				const dateEl = lesson.querySelector('.date');
-				if (!dateEl) return;
-
-				const [day, month, year] = dateEl.textContent
-					.trim()
-					.split('.')
-					.map(Number);
-				const lessonDate = new Date(year, month - 1, day);
-				lessonDate.setHours(12, 0, 0, 0);
-
-				if (e.shiftKey) {
-					// При Shift+клик устанавливаем конечную дату
-					this.rangeEnd = lessonDate;
-				} else {
-					// При обычном клике устанавливаем начальную дату
-					this.rangeStart = lessonDate;
-					this.rangeEnd = null; // Сбрасываем конечную дату
-				}
-
-				// Убрали нормализацию - применяем как есть
-				this.updateAttendanceStats();
-			});
+		normalizeRange() {
+			if (!this.rangeStart) {
+				// Если начальная дата не выбрана, сбрасываем всё
+				this.rangeStart = null;
+				this.rangeEnd = null;
+				return;
+			}
+			if (!this.rangeEnd) {
+				// Если конечная дата не выбрана, используем rangeStart (один день)
+				this.rangeEnd = new Date(this.rangeStart);
+				this.rangeEnd.setHours(23, 59, 59, 999);
+			} else if (this.rangeEnd < this.rangeStart) {
+				// Если rangeEnd раньше rangeStart, меняем их местами
+				const temp = this.rangeStart;
+				this.rangeStart = new Date(this.rangeEnd);
+				this.rangeStart.setHours(0, 0, 0, 0);
+				this.rangeEnd = new Date(temp);
+				this.rangeEnd.setHours(23, 59, 59, 999);
+			} else {
+				// Убедимся, что время нормализовано
+				this.rangeStart.setHours(0, 0, 0, 0);
+				this.rangeEnd.setHours(23, 59, 59, 999);
+			}
 		}
 
 		highlightRange() {
 			this.clearHighlights();
-			if (!(this.rangeStart && this.rangeEnd)) return;
-
+			this.normalizeRange(); // Нормализуем перед подсветкой
+			const dateFrom = this.rangeStart;
+			const dateTo = this.rangeEnd;
+			if (!dateFrom || !dateTo) return;
 			requestAnimationFrame(async () => {
 				const lessons = document.querySelectorAll(
 					'.lessons, .lessons.lateness, .lessons.pass',
 				);
-
 				for (let i = 0; i < lessons.length; i++) {
 					const lesson = lessons[i];
 					const dateEl = lesson.querySelector('.date');
 					if (!dateEl) continue;
-
 					const dateText = dateEl.textContent.trim();
 					if (!dateText) continue;
-
 					const [d, m, y] = dateText.split('.').map(Number);
 					const dt = new Date(y, m - 1, d);
-					dt.setHours(12, 0, 0, 0);
-
-					// Проверяем диапазон без нормализации
-					const isInRange =
-						this.rangeStart &&
-						dt >= this.rangeStart &&
-						this.rangeEnd &&
-						dt <= this.rangeEnd;
-
+					dt.setHours(12, 0, 0, 0); // Нормализация
+					const isInRange = dt >= dateFrom && dt <= dateTo;
 					if (isInRange) {
-						// Разные стили для граничных дат
 						if (
-							(this.rangeStart && dt.getTime() === this.rangeStart.getTime()) ||
-							(this.rangeEnd && dt.getTime() === this.rangeEnd.getTime())
+							dt.getTime() === dateFrom.getTime() ||
+							dt.getTime() === dateTo.getTime()
 						) {
 							lesson.style.border = '2px solid #ff6b00'; // Оранжевый для границ
 						} else {
-							lesson.style.border = '2px solid green'; // Зеленый для внутренних дат
+							lesson.style.border = '2px solid green'; // Зелёный для внутренних
 						}
 						lesson.style.boxSizing = 'border-box';
-
 						if (i % 10 === 0) {
 							await new Promise(resolve => requestAnimationFrame(resolve));
 						}

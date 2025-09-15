@@ -1,6 +1,6 @@
 {
 	"name": "Top Academy Journal Auto Rater Pro",
-	"version": "0.6",
+	"version": "0.6.1",
 	"description": "Автоматизация процессов journal",
 	"author": "Rodion",
 	"match": ["https://journal.top-academy.ru/*"],
