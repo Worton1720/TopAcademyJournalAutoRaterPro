@@ -1,4 +1,5 @@
 export function createWidget() {
+	console.log('[DOM] createWidget called');
 	// Удаляем существующий виджет, если есть
 	removeWidget();
 
@@ -18,6 +19,7 @@ export function createWidget() {
         font-family: Arial, sans-serif;
         transition: all 0.3s ease;
     `;
+	console.log('[DOM] Widget element created, appending to body...');
 
 	widget.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -77,12 +79,15 @@ export function createWidget() {
     `;
 
 	document.body.appendChild(widget);
+	console.log('[DOM] Widget appended to body, id:', widget.id);
 	return widget;
 }
 
 export function removeWidget() {
 	const existingWidget = document.getElementById('attendance-stats-widget');
 	if (existingWidget) {
+		console.log('[DOM] Removing widget');
+		console.trace('[DOM] Widget removal trace');
 		existingWidget.remove();
 	}
 }

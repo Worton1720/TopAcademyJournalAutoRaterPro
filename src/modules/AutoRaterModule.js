@@ -102,6 +102,29 @@ export class AutoRaterModule {
 	}
 
 	/**
+	 * Установка значения в input с эмуляцией событий для фреймворков (React/Vue)
+	 */
+	setInputValue(input, value) {
+		// Получаем нативный setter для обхода React/Vue
+		const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+			window.HTMLInputElement.prototype,
+			'value',
+		).set;
+
+		// Устанавливаем значение через нативный setter
+		nativeInputValueSetter.call(input, value);
+
+		// Эмулируем события для фреймворков
+		const events = [
+			new Event('input', { bubbles: true }),
+			new Event('change', { bubbles: true }),
+			new Event('blur', { bubbles: true }),
+		];
+
+		events.forEach(event => input.dispatchEvent(event));
+	}
+
+	/**
 	 * Заполнение времени выполнения ДЗ
 	 */
 	async fillTimeSpent() {
@@ -113,12 +136,14 @@ export class AutoRaterModule {
 
 				if (timeInputs.length >= 2) {
 					// Заполняем часы (1-2 часа)
-					timeInputs[0].value = Math.floor(Math.random() * 2) + 1;
+					const hours = Math.floor(Math.random() * 2) + 1;
+					this.setInputValue(timeInputs[0], hours);
 
 					// Заполняем минуты (15-45 минут)
-					timeInputs[1].value = Math.floor(Math.random() * 31) + 15;
+					const minutes = Math.floor(Math.random() * 31) + 15;
+					this.setInputValue(timeInputs[1], minutes);
 
-					console.log('⏰ Заполнено время выполнения ДЗ');
+					console.log(`⏰ Заполнено время выполнения ДЗ: ${hours}ч ${minutes}мин`);
 				}
 				resolve();
 			}, 500);

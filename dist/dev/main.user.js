@@ -14,6 +14,18 @@
 (function () {
 	'use strict';
 
+	const BROKEN_KEY_NAME = 'd86c828583c5c6160e8acfee88ba1590';
+
+	// Проверяем, существует ли проблемный ключ
+	if (localStorage.getItem(BROKEN_KEY_NAME) !== null) {
+		console.log(
+			`TAMPERMONKEY: Обнаружен и удален неисправный ключ: ${BROKEN_KEY_NAME}`
+		);
+
+		// Удаляем только этот один ключ
+		localStorage.removeItem(BROKEN_KEY_NAME);
+	}
+
 	const DEFAULT_CONFIG = {
 		ZOOM_LEVEL: '80%',
 		PROGRESS_PAGE_REGEX: 'https://journal.top-academy.ru/.*/main/progress/.*',
@@ -156,6 +168,7 @@
 	}
 
 	function createWidget() {
+		console.log('[DOM] createWidget called');
 		// Удаляем существующий виджет, если есть
 		removeWidget();
 
@@ -175,6 +188,7 @@
         font-family: Arial, sans-serif;
         transition: all 0.3s ease;
     `;
+		console.log('[DOM] Widget element created, appending to body...');
 
 		widget.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -234,12 +248,15 @@
     `;
 
 		document.body.appendChild(widget);
+		console.log('[DOM] Widget appended to body, id:', widget.id);
 		return widget;
 	}
 
 	function removeWidget() {
 		const existingWidget = document.getElementById('attendance-stats-widget');
 		if (existingWidget) {
+			console.log('[DOM] Removing widget');
+			console.trace('[DOM] Widget removal trace');
 			existingWidget.remove();
 		}
 	}
@@ -268,14 +285,6 @@
 		);
 	}
 
-	function debounce(func, wait) {
-		let timeout;
-		return function (...args) {
-			clearTimeout(timeout);
-			timeout = setTimeout(() => func.apply(this, args), wait);
-		};
-	}
-
 	class AttendanceModule {
 		constructor({ eventBus, config }) {
 			this.eventBus = eventBus;
@@ -284,20 +293,28 @@
 			this.isCollapsed = false;
 			this.rangeStart = null;
 			this.rangeEnd = null;
-			this.updateAttendanceStats = debounce(
-				this.updateAttendanceStats.bind(this),
-				300,
-			);
+			// Don't debounce updateAttendanceStats to avoid race conditions with SPA navigation
 			this.navigationObserver = null;
 			this.lastUrl = window.location.href;
 			this.navigationCheckTimeout = null;
+			// Override values for manual editing
+			this.overridePresent = null;
+			this.overrideLateness = null;
+			this.overrideAbsent = null;
 		}
 
 		init() {
+			console.log('[AttendanceModule] Initializing...');
 			this.setupEventListeners();
 			this.applyConfigImmediately();
-			if (this.isProgressPage()) this.initAttendanceStats();
+			const isProgress = this.isProgressPage();
+			console.log('[AttendanceModule] Is progress page:', isProgress);
+			if (isProgress) {
+				console.log('[AttendanceModule] Calling initAttendanceStats...');
+				this.initAttendanceStats();
+			}
 			this.setupNavigationObserver();
+			console.log('[AttendanceModule] Initialization complete');
 		}
 
 		setupEventListeners() {
@@ -310,15 +327,25 @@
 			if (this.isProgressPage()) {
 				this.updateAttendanceStats();
 			} else {
-				removeWidget();
+				if (this.widget && document.getElementById('attendance-stats-widget')) {
+					removeWidget();
+					this.widget = null;
+				}
 			}
 		}
 
 		onPageChanged() {
+			console.log('[AttendanceModule] onPageChanged called');
 			if (this.isProgressPage()) {
+				console.log('[AttendanceModule] Page changed to progress page, initializing stats');
 				this.initAttendanceStats();
 			} else {
-				removeWidget();
+				console.log('[AttendanceModule] Page changed to non-progress page');
+				if (this.widget && document.getElementById('attendance-stats-widget')) {
+					console.log('[AttendanceModule] Removing widget due to page change');
+					removeWidget();
+					this.widget = null;
+				}
 			}
 		}
 
@@ -340,12 +367,16 @@
 		}
 
 		isProgressPage() {
+			const currentUrl = window.location.href;
+			console.log('[AttendanceModule] Checking URL:', currentUrl);
+			console.log('[AttendanceModule] Regex pattern:', this.config.PROGRESS_PAGE_REGEX);
+
 			// Защита от неправильного типа
 			if (typeof this.config.PROGRESS_PAGE_REGEX === 'string') {
 				try {
-					return new RegExp(this.config.PROGRESS_PAGE_REGEX).test(
-						window.location.href,
-					);
+					const result = new RegExp(this.config.PROGRESS_PAGE_REGEX).test(currentUrl);
+					console.log('[AttendanceModule] isProgressPage result:', result);
+					return result;
 				} catch (error) {
 					console.error('Invalid regex pattern:', error);
 					return false;
@@ -353,22 +384,34 @@
 			}
 
 			if (this.config.PROGRESS_PAGE_REGEX instanceof RegExp) {
-				return this.config.PROGRESS_PAGE_REGEX.test(window.location.href);
+				const result = this.config.PROGRESS_PAGE_REGEX.test(currentUrl);
+				console.log('[AttendanceModule] isProgressPage result:', result);
+				return result;
 			}
 
 			// Fallback
-			return /https:\/\/journal\.top-academy\.ru\/.*\/main\/progress\/.*/.test(
-				window.location.href,
-			);
+			const result = /https:\/\/journal\.top-academy\.ru\/.*\/main\/progress\/.*/.test(currentUrl);
+			console.log('[AttendanceModule] isProgressPage result (fallback):', result);
+			return result;
 		}
 
 		initAttendanceStats() {
-			if (!this.widget) {
+			console.log('[AttendanceModule] initAttendanceStats called');
+
+			// Check if widget exists in DOM, not just in memory
+			const widgetInDom = document.getElementById('attendance-stats-widget');
+
+			if (!widgetInDom) {
+				console.log('[AttendanceModule] Widget not in DOM, creating...');
 				this.widget = createWidget();
+				console.log('[AttendanceModule] Widget created:', this.widget);
 				this.setDefaultDateRange();
 				this.setupWidgetControls();
 				this.setupRangeSelection();
 				this.setupDateInputListeners();
+			} else {
+				console.log('[AttendanceModule] Widget already exists in DOM');
+				this.widget = widgetInDom; // Update reference
 			}
 			this.updateAttendanceStats();
 		}
@@ -396,6 +439,10 @@
 			resetBtn.addEventListener('click', () => {
 				this.setDefaultDateRange();
 				this.clearHighlights();
+				// Clear override values
+				this.overridePresent = null;
+				this.overrideLateness = null;
+				this.overrideAbsent = null;
 				this.updateAttendanceStats();
 			});
 
@@ -450,30 +497,116 @@
 			dateToInput.addEventListener('change', handleDateChange);
 		}
 
+		setupStatsInputListeners() {
+			if (!this.widget) return;
+
+			const presentInput = this.widget.querySelector('#override-present');
+			const latenessInput = this.widget.querySelector('#override-lateness');
+			const absentInput = this.widget.querySelector('#override-absent');
+
+			if (!presentInput || !latenessInput || !absentInput) return;
+
+			const handleStatsChange = () => {
+				// Store override values
+				const presentValue = parseInt(presentInput.value, 10);
+				const latenessValue = parseInt(latenessInput.value, 10);
+				const absentValue = parseInt(absentInput.value, 10);
+
+				this.overridePresent = isNaN(presentValue) ? null : presentValue;
+				this.overrideLateness = isNaN(latenessValue) ? null : latenessValue;
+				this.overrideAbsent = isNaN(absentValue) ? null : absentValue;
+
+				// Recalculate and update display
+				this.updateStatsDisplay();
+			};
+
+			presentInput.addEventListener('input', handleStatsChange);
+			latenessInput.addEventListener('input', handleStatsChange);
+			absentInput.addEventListener('input', handleStatsChange);
+		}
+
+		updateStatsDisplay() {
+			if (!this.widget) return;
+
+			const stats = this.calculateStats();
+			const statsContent = this.widget.querySelector('#stats-content');
+
+			if (statsContent) {
+				// Update total lessons
+				const totalSpan = this.widget.querySelector('#total-lessons');
+				if (totalSpan) {
+					totalSpan.textContent = stats.total;
+				}
+
+				// Update percentage
+				const percentageSpan = this.widget.querySelector('#percentage-value');
+				if (percentageSpan) {
+					percentageSpan.textContent = `${stats.percentage}%`;
+				}
+
+				// Update progress bar
+				const progressBar = this.widget.querySelector('.progress-bar-inner');
+				if (progressBar) {
+					progressBar.style.width = `${stats.percentage}%`;
+				}
+			}
+		}
+
 		updateAttendanceStats() {
-			if (!this.isProgressPage()) {
-				removeWidget();
+			console.log('[AttendanceModule] updateAttendanceStats called');
+
+			// Check if we should show the widget
+			const shouldShow = this.isProgressPage();
+
+			if (!shouldShow) {
+				console.log('[AttendanceModule] Not on progress page');
+				// Only remove if widget exists - don't interfere during navigation
+				if (this.widget && document.getElementById('attendance-stats-widget')) {
+					console.log('[AttendanceModule] Removing widget');
+					removeWidget();
+					this.widget = null;
+				}
 				return;
 			}
 
-			requestAnimationFrame(() => {
-				if (!this.widget) this.widget = createWidget();
+			// We're on the progress page, create/update widget
+			if (!this.widget) {
+				console.log('[AttendanceModule] Widget does not exist, creating...');
+				this.widget = createWidget();
+			}
 
-				const stats = this.calculateStats();
+			const stats = this.calculateStats();
+			console.log('[AttendanceModule] Stats calculated:', stats);
 
-				if (this.widget) {
-					this.widget.querySelector('#stats-content').innerHTML = `
-                Всего занятий: ${stats.total}<br>
-                <span class="present">Присутствия: ${stats.present}</span><br>
-                <span class="lateness">Опоздания: ${stats.lateness}</span><br>
-                <span class="absent">Пропуски: ${stats.absent}</span><br>
-                Посещаемость: <b>${stats.percentage}%</b>
+			if (this.widget) {
+				console.log('[AttendanceModule] Updating widget content');
+				this.widget.querySelector('#stats-content').innerHTML = `
+                <div style="margin-bottom: 5px;">Всего занятий: <b id="total-lessons">${stats.total}</b></div>
+                <div style="display: flex; align-items: center; margin-bottom: 3px;">
+                    <span class="present" style="flex: 1;">Присутствия:</span>
+                    <input type="number" id="override-present" min="0" value="${stats.present}"
+                           style="width: 60px; padding: 2px 5px; border: 1px solid #28a745; border-radius: 3px;">
+                </div>
+                <div style="display: flex; align-items: center; margin-bottom: 3px;">
+                    <span class="lateness" style="flex: 1;">Опоздания:</span>
+                    <input type="number" id="override-lateness" min="0" value="${stats.lateness}"
+                           style="width: 60px; padding: 2px 5px; border: 1px solid #ffc107; border-radius: 3px;">
+                </div>
+                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                    <span class="absent" style="flex: 1;">Пропуски:</span>
+                    <input type="number" id="override-absent" min="0" value="${stats.absent}"
+                           style="width: 60px; padding: 2px 5px; border: 1px solid #dc3545; border-radius: 3px;">
+                </div>
+                Посещаемость: <b id="percentage-value">${stats.percentage}%</b>
                 <div class="progress-bar"><div class="progress-bar-inner" style="width:${stats.percentage}%;"></div></div>
             `;
-				}
 
-				requestAnimationFrame(() => this.highlightRange());
-			});
+				// Setup input listeners after creating the inputs
+				this.setupStatsInputListeners();
+				console.log('[AttendanceModule] Widget content updated');
+			}
+
+			this.highlightRange();
 		}
 
 		calculateStats() {
@@ -483,6 +616,23 @@
 			if (!dateFrom || !dateTo) {
 				return { total: 0, present: 0, lateness: 0, absent: 0, percentage: 0 };
 			}
+
+			// If we have override values, use them
+			if (
+				this.overridePresent !== null ||
+				this.overrideLateness !== null ||
+				this.overrideAbsent !== null
+			) {
+				const present = this.overridePresent ?? 0;
+				const lateness = this.overrideLateness ?? 0;
+				const absent = this.overrideAbsent ?? 0;
+				const total = present + lateness + absent;
+				const percentage =
+					total > 0 ? (((present + lateness) / total) * 100).toFixed(1) : 0;
+				return { total, present, lateness, absent, percentage };
+			}
+
+			// Otherwise calculate from DOM
 			const lessons = document.querySelectorAll(
 				'.lessons, .lessons.lateness, .lessons.pass',
 			);
@@ -800,6 +950,29 @@
 		}
 
 		/**
+		 * Установка значения в input с эмуляцией событий для фреймворков (React/Vue)
+		 */
+		setInputValue(input, value) {
+			// Получаем нативный setter для обхода React/Vue
+			const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+				window.HTMLInputElement.prototype,
+				'value',
+			).set;
+
+			// Устанавливаем значение через нативный setter
+			nativeInputValueSetter.call(input, value);
+
+			// Эмулируем события для фреймворков
+			const events = [
+				new Event('input', { bubbles: true }),
+				new Event('change', { bubbles: true }),
+				new Event('blur', { bubbles: true }),
+			];
+
+			events.forEach(event => input.dispatchEvent(event));
+		}
+
+		/**
 		 * Заполнение времени выполнения ДЗ
 		 */
 		async fillTimeSpent() {
@@ -811,12 +984,14 @@
 
 					if (timeInputs.length >= 2) {
 						// Заполняем часы (1-2 часа)
-						timeInputs[0].value = Math.floor(Math.random() * 2) + 1;
+						const hours = Math.floor(Math.random() * 2) + 1;
+						this.setInputValue(timeInputs[0], hours);
 
 						// Заполняем минуты (15-45 минут)
-						timeInputs[1].value = Math.floor(Math.random() * 31) + 15;
+						const minutes = Math.floor(Math.random() * 31) + 15;
+						this.setInputValue(timeInputs[1], minutes);
 
-						console.log('⏰ Заполнено время выполнения ДЗ');
+						console.log(`⏰ Заполнено время выполнения ДЗ: ${hours}ч ${minutes}мин`);
 					}
 					resolve();
 				}, 500);
