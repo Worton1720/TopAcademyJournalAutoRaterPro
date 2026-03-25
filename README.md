@@ -33,9 +33,10 @@
 ## 🛠 Установка
 
 1. [![Tampermonkey](https://img.shields.io/badge/Tampermonkey-Установить-green?style=for-the-badge&logo=greasemonkey)](https://www.tampermonkey.net/index.php)
-2. [![Установить напрямую](https://img.shields.io/badge/напрямую-Установить-green?style=for-the-badge&logo=greasemonkey)](https://github.com/Worton1720/TopAcademyJournalAutoRaterPro/raw/refs/heads/main/dist/prod/main.user.js) или [![Установить через Greasy Fork](https://img.shields.io/badge/Greasy_Fork-Установить-green?style=for-the-badge&logo=greasemonkey)](https://greasyfork.org/ru/scripts/534433-top-academy-journal-auto-rater-pro)
-3. Подтвердите установку в диалоговом окне
-4. Перезагрузите страницу сайта
+2. ⚠️ **Важно для Chrome/Edge:** Активируйте разрешение на выполнение userscript'ов в настройках расширения (подробнее в [FAQ Tampermonkey](https://www.tampermonkey.net/faq.php#Q209)).
+3. [![Установить напрямую](https://img.shields.io/badge/напрямую-Установить-green?style=for-the-badge&logo=greasemonkey)](https://github.com/Worton1720/TopAcademyJournalAutoRaterPro/raw/refs/heads/main/dist/prod/main.user.js) или [![Установить через Greasy Fork](https://img.shields.io/badge/Greasy_Fork-Установить-green?style=for-the-badge&logo=greasemonkey)](https://greasyfork.org/ru/scripts/534433-top-academy-journal-auto-rater-pro)
+4. Подтвердите установку в диалоговом окне.
+5. Перезагрузите страницу сайта.
 
 ---
 
